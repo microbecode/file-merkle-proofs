@@ -1,0 +1,9 @@
+[package]
+name = "file-merkle-proofs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/mod.rs"  # Update the path to your main module file
+
+[dependencies]
