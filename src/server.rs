@@ -10,18 +10,18 @@ use warp::{Rejection, Reply};
 
 use merkleproofs::merkle_tree::MerkleTree;
 
-const STORAGE_DIR: &str = "uploaded_files";
+const STORAGE_DIR: &str = "server_storage";
+
+#[derive(Serialize, Deserialize)]
+struct FileData {
+    name: String,
+    content: String,
+}
 
 #[derive(Serialize, Deserialize)]
 struct UploadRequest {
     root_hash: String,
     files: Vec<FileData>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct FileData {
-    path: String,
-    content: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -89,21 +89,16 @@ async fn upload_files(
     ensure_storage_dir_exists();
 
     for file in request.files {
-        let file_path = Path::new(STORAGE_DIR).join(&file.path);
-        eprintln!("Attempting to write file to: {:?}", file_path);
-
-        match fs::write(&file_path, file.content) {
-            Ok(_) => {
-                println!("Successfully saved file: {:?}", file_path);
-            }
-            Err(e) => {
-                eprintln!("Failed to write file {:?}: {}", file_path, e);
-                return Err(warp::reject::custom(CustomError::new("Failed to write file")));
-            }
+        let file_path = Path::new(STORAGE_DIR).join(file.name);
+        if let Err(e) = fs::write(&file_path, file.content) {
+            return Err(warp::reject::custom(CustomError::new("Failed to write file")));
         }
     }
 
-    Ok(warp::reply::json(&"Files uploaded and saved successfully."))
+    Ok(warp::reply::with_status(
+        "Files uploaded successfully",
+        warp::http::StatusCode::OK,
+    ))
 }
 
 

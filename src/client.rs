@@ -1,9 +1,13 @@
+use merkleproofs::client_state::ClientState;
 use merkleproofs::merkle_tree::MerkleTree;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::Path;
+
+const STORAGE_DIR: &str = "client_storage";
+const STATE_STORAGE: &str = "state.json";
 
 #[derive(Serialize, Deserialize)]
 struct UploadRequest {
@@ -13,32 +17,51 @@ struct UploadRequest {
 
 #[derive(Serialize, Deserialize)]
 struct FileData {
-    path: String,
+    name: String,
     content: String,
 }
 
+fn ensure_storage_dir_exists() {
+    if !Path::new(STORAGE_DIR).exists() {
+        fs::create_dir_all(STORAGE_DIR).expect("Failed to create storage directory");
+    }
+}
+
 async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), reqwest::Error> {
-    let file_contents: Vec<FileData> = file_paths
+    ensure_storage_dir_exists();
+    // Read file contents and prepare file data
+    let files: Vec<FileData> = file_paths
         .iter()
-        .map(|path| FileData {
-            path: path.clone(),
-            content: fs::read_to_string(path).expect("Unable to read file"),
+        .map(|file_name| {
+            let path = Path::new(STORAGE_DIR).join(file_name);
+            let content = fs::read_to_string(&path).expect("Unable to read file");
+            FileData {
+                name: file_name.clone(),
+                content,
+            }
         })
         .collect();
 
+    // Compute Merkle tree root
+    let file_contents: Vec<String> = files.iter().map(|file| file.content.clone()).collect();
     let mut tree = MerkleTree::new();
-    let file_contents_strings: Vec<String> =
-        file_contents.iter().map(|f| f.content.clone()).collect();
-    tree.build(&file_contents_strings);
+    tree.build(&file_contents);
     let root_hash = tree
         .root()
         .clone()
         .unwrap_or_else(|| "empty_root".to_string());
 
-    // Prepare the upload request
+    // Save the client state
+    let state = ClientState::new(root_hash.clone());
+    match state.save(Path::new(STORAGE_DIR).join(STATE_STORAGE)) {
+        Ok(_) => println!("Client state saved successfully."),
+        Err(e) => eprintln!("Failed to save client state: {}", e),
+    }
+
+    // Prepare the upload request with file data
     let request = UploadRequest {
-        root_hash,
-        files: file_contents,
+        root_hash: root_hash.clone(),
+        files,
     };
 
     let response = Client::new()
