@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{self, Read};
 
 /// Function to calculate the SHA-256 hash of a file and return it as a hexadecimal `String`
-fn hash_file(file_path: &str) -> io::Result<String> {
+pub fn hash_file(file_path: &str) -> io::Result<String> {
     let mut hasher = Sha256::new();
     let mut file = File::open(file_path)?;
 

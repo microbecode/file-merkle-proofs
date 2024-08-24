@@ -8,20 +8,28 @@ use std::path::Path;
 #[derive(Serialize, Deserialize)]
 struct UploadRequest {
     root_hash: String,
-    file_paths: Vec<String>,
+    files: Vec<FileData>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct FileData {
+    path: String,
+    content: String,
 }
 
 async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), reqwest::Error> {
-    let client = Client::new();
-
-    // Compute hashes and Merkle tree root
-    let file_contents: Vec<String> = file_paths
+    let file_contents: Vec<FileData> = file_paths
         .iter()
-        .map(|path| fs::read_to_string(path).expect("Unable to read file"))
+        .map(|path| FileData {
+            path: path.clone(),
+            content: fs::read_to_string(path).expect("Unable to read file"),
+        })
         .collect();
 
     let mut tree = MerkleTree::new();
-    tree.build(&file_contents);
+    let file_contents_strings: Vec<String> =
+        file_contents.iter().map(|f| f.content.clone()).collect();
+    tree.build(&file_contents_strings);
     let root_hash = tree
         .root()
         .clone()
@@ -30,18 +38,15 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     // Prepare the upload request
     let request = UploadRequest {
         root_hash,
-        file_paths: file_paths.to_vec(),
+        files: file_contents,
     };
 
-    // Send the request to the server
-    let response = client
-        .post(server_url)
+    let response = Client::new()
+        .post(format!("{}/upload", server_url))
         .json(&request)
         .send()
-        .await?
-        .error_for_status()?;
+        .await?;
 
-    // Check the response status and print the response body
     let status = response.status();
     let body = response.text().await?;
 
