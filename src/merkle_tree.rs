@@ -1,11 +1,17 @@
 //This code is adjusted from an earlier version I wrote: https://github.com/microbecode/stark-from-zero/blob/master/src/merkle_tree.rs
 
-use crate::hashing::{self, hash};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Debug)]
 pub struct MerkleTree {
-    root: Option<u128>,
-    levels: Vec<Vec<u128>>,
+    root: Option<u64>,
+    levels: Vec<Vec<u64>>,
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 impl MerkleTree {
@@ -16,8 +22,8 @@ impl MerkleTree {
         }
     }
 
-    pub fn build(&mut self, elements: &[u128]) {
-        let mut hashes: Vec<u128> = elements.iter().map(|e| hash(*e)).collect();
+    pub fn build(&mut self, elements: &[u64]) {
+        let mut hashes: Vec<u64> = elements.iter().map(|e| calculate_hash(e)).collect();
         if hashes.len() % 2 != 0 {
             // If odd number, duplicate the last element
             hashes.push(hashes[hashes.len() - 1]);
@@ -28,7 +34,7 @@ impl MerkleTree {
         while hashes.len() > 1 {
             let mut new_hashes = Vec::new();
             for chunk in hashes.chunks(2) {
-                let hash = hashing::hash(chunk[0].wrapping_add(chunk[1]));
+                let hash = calculate_hash(&chunk[0].wrapping_add(chunk[1]));
 
                 new_hashes.push(hash);
             }
@@ -39,11 +45,11 @@ impl MerkleTree {
         self.levels = nodes;
     }
 
-    pub fn root(&self) -> Option<u128> {
+    pub fn root(&self) -> Option<u64> {
         self.root
     }
 
-    pub fn get_merkle_proof(&self, index: usize) -> Option<Vec<u128>> {
+    pub fn get_merkle_proof(&self, index: usize) -> Option<Vec<u64>> {
         if index >= self.levels[0].len() {
             return None;
         }
@@ -64,7 +70,6 @@ impl MerkleTree {
 
 #[cfg(test)]
 mod tests {
-    use crate::hashing::hash;
 
     use super::*;
 
@@ -79,7 +84,7 @@ mod tests {
     fn build_empty_tree() {
         let mut tree = MerkleTree::new();
 
-        let elements: Vec<u128> = Vec::new();
+        let elements: Vec<u64> = Vec::new();
         tree.build(&elements);
 
         assert_eq!(tree.root, None);
@@ -91,14 +96,14 @@ mod tests {
     fn build_tree_one_element() {
         let mut tree = MerkleTree::new();
 
-        let val: u128 = 3;
-        let mut elements: Vec<u128> = Vec::new();
+        let val: u64 = 3;
+        let mut elements: Vec<u64> = Vec::new();
 
         elements.push(val);
         tree.build(&elements);
 
-        let expected_leaf = hash(val);
-        let expected_root = hash(expected_leaf.wrapping_add(expected_leaf));
+        let expected_leaf = calculate_hash(&val);
+        let expected_root = calculate_hash(&expected_leaf.wrapping_add(expected_leaf));
 
         assert_eq!(tree.levels.len(), 2);
         assert_eq!(tree.levels[0].len(), 2);
@@ -112,17 +117,17 @@ mod tests {
     fn build_tree_two_elements() {
         let mut tree = MerkleTree::new();
 
-        let val1: u128 = 3;
-        let val2: u128 = 4;
-        let mut elements: Vec<u128> = Vec::new();
+        let val1: u64 = 3;
+        let val2: u64 = 4;
+        let mut elements: Vec<u64> = Vec::new();
 
         elements.push(val1);
         elements.push(val2);
         tree.build(&elements);
 
-        let expected_leaf_1 = hash(val1);
-        let expected_leaf_2 = hash(val2);
-        let expected_root = hash(expected_leaf_1.wrapping_add(expected_leaf_2));
+        let expected_leaf_1 = calculate_hash(&val1);
+        let expected_leaf_2 = calculate_hash(&val2);
+        let expected_root = calculate_hash(&expected_leaf_1.wrapping_add(expected_leaf_2));
 
         assert_eq!(tree.levels.len(), 2);
         assert_eq!(tree.levels[0].len(), 2);
@@ -137,25 +142,25 @@ mod tests {
     fn build_tree_three_elements() {
         let mut tree = MerkleTree::new();
 
-        let val1: u128 = 3;
-        let val2: u128 = 4;
-        let val3: u128 = 5;
-        let mut elements: Vec<u128> = Vec::new();
+        let val1: u64 = 3;
+        let val2: u64 = 4;
+        let val3: u64 = 5;
+        let mut elements: Vec<u64> = Vec::new();
 
         elements.push(val1);
         elements.push(val2);
         elements.push(val3);
         tree.build(&elements);
 
-        let expected_leaf_1 = hash(val1);
-        let expected_leaf_2 = hash(val2);
-        let expected_leaf_3 = hash(val3);
-        let expected_leaf_4 = hash(val3);
+        let expected_leaf_1 = calculate_hash(&val1);
+        let expected_leaf_2 = calculate_hash(&val2);
+        let expected_leaf_3 = calculate_hash(&val3);
+        let expected_leaf_4 = calculate_hash(&val3);
 
-        let expected_mid_node1 = hash(expected_leaf_1.wrapping_add(expected_leaf_2));
-        let expected_mid_node2 = hash(expected_leaf_3.wrapping_add(expected_leaf_4));
+        let expected_mid_node1 = calculate_hash(&expected_leaf_1.wrapping_add(expected_leaf_2));
+        let expected_mid_node2 = calculate_hash(&expected_leaf_3.wrapping_add(expected_leaf_4));
 
-        let expected_root = hash(expected_mid_node1.wrapping_add(expected_mid_node2));
+        let expected_root = calculate_hash(&expected_mid_node1.wrapping_add(expected_mid_node2));
 
         assert_eq!(tree.levels.len(), 3);
         assert_eq!(tree.levels[0].len(), 4);
@@ -178,25 +183,25 @@ mod tests {
     fn get_merkle_proof_with_three_elements() {
         let mut tree = MerkleTree::new();
 
-        let val1: u128 = 3;
-        let val2: u128 = 4;
-        let val3: u128 = 5;
-        let mut elements: Vec<u128> = Vec::new();
+        let val1: u64 = 3;
+        let val2: u64 = 4;
+        let val3: u64 = 5;
+        let mut elements: Vec<u64> = Vec::new();
 
         elements.push(val1);
         elements.push(val2);
         elements.push(val3);
         tree.build(&elements);
 
-        let expected_leaf_1 = hash(val1);
-        let expected_leaf_2 = hash(val2);
-        let expected_leaf_3 = hash(val3);
-        let expected_leaf_4 = hash(val3);
+        let expected_leaf_1 = calculate_hash(&val1);
+        let expected_leaf_2 = calculate_hash(&val2);
+        let expected_leaf_3 = calculate_hash(&val3);
+        let expected_leaf_4 = calculate_hash(&val3);
 
-        let expected_mid_node1 = hash(expected_leaf_1.wrapping_add(expected_leaf_2));
-        let expected_mid_node2 = hash(expected_leaf_3.wrapping_add(expected_leaf_4));
+        let expected_mid_node1 = calculate_hash(&expected_leaf_1.wrapping_add(expected_leaf_2));
+        let expected_mid_node2 = calculate_hash(&expected_leaf_3.wrapping_add(expected_leaf_4));
 
-        let expected_root = hash(expected_mid_node1.wrapping_add(expected_mid_node2));
+        let expected_root = calculate_hash(&expected_mid_node1.wrapping_add(expected_mid_node2));
 
         // Test proofs for each leaf
         {
