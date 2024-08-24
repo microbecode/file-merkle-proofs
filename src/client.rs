@@ -1,3 +1,6 @@
+use clap::Arg;
+use clap::ArgAction;
+use clap::Command;
 use merkleproofs::client_state::ClientState;
 use merkleproofs::merkle_tree::MerkleTree;
 use reqwest::Client;
@@ -19,6 +22,53 @@ struct UploadRequest {
 struct FileData {
     name: String,
     content: String,
+}
+
+#[tokio::main]
+async fn main() {
+    let matches = Command::new("Merkle Client")
+        .version("1.0")
+        .about("Uploads files to a server or verifies a file")
+        .subcommand(
+            Command::new("upload")
+                .about("Uploads files to the server")
+                .arg(Arg::new("server_url").help("The server URL").required(true))
+                .arg(
+                    Arg::new("files")
+                        .help("List of files to upload")
+                        .required(true)
+                        .action(ArgAction::Append),
+                ), // Use Append action
+        )
+        .subcommand(
+            Command::new("verify")
+                .about("Verifies a file from the server")
+                .arg(Arg::new("server_url").help("The server URL").required(true))
+                .arg(Arg::new("file").help("The file to verify").required(true)),
+        )
+        .get_matches();
+
+    match matches.subcommand() {
+        Some(("upload", sub_m)) => {
+            let server_url = sub_m.get_one::<String>("server_url").unwrap();
+            let files: Vec<String> = sub_m
+                .get_many::<String>("files")
+                .unwrap()
+                .map(|s| s.to_string())
+                .collect();
+            upload_files(server_url, &files)
+                .await
+                .expect("Failed to upload files");
+        }
+        Some(("verify", sub_m)) => {
+            let server_url = sub_m.get_one::<String>("server_url").unwrap();
+            let file = sub_m.get_one::<String>("file").unwrap();
+            verify_file(server_url, file)
+                .await
+                .expect("Failed to verify file");
+        }
+        _ => eprintln!("Unknown command"),
+    }
 }
 
 fn ensure_storage_dir_exists() {
@@ -79,21 +129,26 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     Ok(())
 }
 
-#[tokio::main]
-async fn main() {
-    // Collect command-line arguments
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        eprintln!("Usage: client <server_url> <file1> [file2 ... fileN]");
-        std::process::exit(1);
+async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::Error> {
+    let client = Client::new();
+
+    let response = client
+        .get(format!("{}/verify/{}", server_url, file_name))
+        .send()
+        .await?
+        .error_for_status()?;
+
+    let proof: Vec<String> = response.json().await?;
+
+    let stored_state = ClientState::load(STORAGE_DIR).expect("Failed to load client state");
+    let mut tree = MerkleTree::new();
+    tree.build(&proof);
+
+    if tree.root().unwrap_or_default() == stored_state.root_hash {
+        println!("File {} is verified and correct.", file_name);
+    } else {
+        println!("File {} verification failed.", file_name);
     }
 
-    let server_url = &args[1];
-    let file_paths = &args[2..];
-
-    // Call the upload function
-    if let Err(e) = upload_files(server_url, file_paths).await {
-        eprintln!("Error uploading files: {}", e);
-        std::process::exit(1);
-    }
+    Ok(())
 }
