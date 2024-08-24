@@ -49,8 +49,10 @@ async fn main() {
         .and(with_state(state.clone()))
         .and_then(get_file_content);
 
+    println!("Starting server on http://127.0.0.1:8080");
+
     warp::serve(upload.or(get_file))
-        .run(([127, 0, 0, 1], 3030))
+        .run(([127, 0, 0, 1], 8080))
         .await;
 }
 

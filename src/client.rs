@@ -34,12 +34,19 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     };
 
     // Send the request to the server
-    client
+    let response = client
         .post(server_url)
         .json(&request)
         .send()
         .await?
         .error_for_status()?;
+
+    // Check the response status and print the response body
+    let status = response.status();
+    let body = response.text().await?;
+
+    println!("Response status: {:?}", status);
+    println!("Response body: {:?}", body);
 
     Ok(())
 }
