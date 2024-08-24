@@ -1,10 +1,18 @@
 [package]
-name = "file-merkle-proofs"
+name = "merkleproofs"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-path = "src/mod.rs"  # Update the path to your main module file
+path = "src/lib.rs"  # Path to the library root file
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
 
 [dependencies]
 hex = "0.4.3"

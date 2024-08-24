@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use warp::Filter;
 
-use crate::merkle_tree::MerkleTree;
+use merkleproofs::merkle_tree::MerkleTree;
 
 #[derive(Serialize, Deserialize)]
 struct UploadRequest {

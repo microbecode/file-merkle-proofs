@@ -1,9 +1,9 @@
+use merkleproofs::merkle_tree::MerkleTree;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs;
 use std::path::Path;
-
-use crate::merkle_tree::MerkleTree;
 
 #[derive(Serialize, Deserialize)]
 struct UploadRequest {
@@ -42,4 +42,23 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
         .error_for_status()?;
 
     Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    // Collect command-line arguments
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 3 {
+        eprintln!("Usage: client <server_url> <file1> [file2 ... fileN]");
+        std::process::exit(1);
+    }
+
+    let server_url = &args[1];
+    let file_paths = &args[2..];
+
+    // Call the upload function
+    if let Err(e) = upload_files(server_url, file_paths).await {
+        eprintln!("Error uploading files: {}", e);
+        std::process::exit(1);
+    }
 }
