@@ -52,8 +52,8 @@ fn ensure_storage_dir_exists() {
     }
 }
 
-#[tokio::main]
-async fn main() {
+#[shuttle_runtime::main]
+async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
     let state = Arc::new(AppState::new());
 
     let upload = warp::post()
@@ -70,9 +70,11 @@ async fn main() {
     .and(with_state(state.clone()))
     .and_then(get_file_content); */
 
-    println!("Starting server on http://127.0.0.1:8080");
 
-    warp::serve(upload).run(([127, 0, 0, 1], 8080)).await;
+    // println!("Starting server on http://127.0.0.1:8080");
+
+    // warp::serve(upload).run(([127, 0, 0, 1], 8080)).await;
+    Ok(upload.boxed().into())
 }
 
 fn with_state(
@@ -93,6 +95,7 @@ async fn upload_files(
         if let Err(e) = fs::write(&file_path, file.content) {
             return Err(warp::reject::custom(CustomError::new("Failed to write file")));
         }
+        println!("Stored file {:?}", file_path.file_name().unwrap());
     }
 
     Ok(warp::reply::with_status(

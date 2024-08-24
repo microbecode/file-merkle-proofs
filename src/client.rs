@@ -24,6 +24,7 @@ struct FileData {
     content: String,
 }
 
+// Example: cargo run --bin client -- upload http://127.0.0.1:8000/upload file1.txt file2.txt
 #[tokio::main]
 async fn main() {
     let matches = Command::new("Merkle Client")
