@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use warp::reject::Reject;
 use std::collections::HashMap;
 use std::{fmt, fs};
@@ -32,16 +33,17 @@ struct FileResponse {
 
 #[derive(Clone)]
 struct AppState {
-    //file_store: Mutex<HashMap<String, String>>, // File paths to file contents
-    // merkle_trees: Mutex<HashMap<String, MerkleTree>>, // Root hash to Merkle tree
+    file_store: Arc<RwLock<HashMap<String, String>>>, // File paths to file contents
+    merkle_tree: Arc<RwLock<Option<MerkleTree>>>, // The single Merkle tree
+    root_hash: Arc<RwLock<Option<String>>>, // The root hash of the Merkle tree
 }
 
 impl AppState {
     fn new() -> Self {
         Self {
-           
-           // file_store: Mutex::new(HashMap::new()),
-           // merkle_trees: Mutex::new(HashMap::new()),
+            file_store: Arc::new(RwLock::new(HashMap::new())),
+            merkle_tree: Arc::new(RwLock::new(None)),
+            root_hash: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -56,7 +58,7 @@ fn ensure_storage_dir_exists() {
 async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
     let state = Arc::new(AppState::new());
 
-    let upload = warp::post()
+    let upload_route = warp::post()
         .and(warp::path("upload"))
         .and(warp::body::json())
         .and(with_state(state.clone())) // Ensure this matches the state filter
@@ -64,17 +66,15 @@ async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
             upload_files(request, state).await
         });
 
-    /* let get_file = warp::get()
-    .and(warp::path("file"))
-    .and(warp::query::<HashMap<String, String>>())
-    .and(with_state(state.clone()))
-    .and_then(get_file_content); */
+        let verify_route = warp::get()
+        .and(warp::path!("file" / String))
+        .and(with_state(state.clone()))
+        .and_then(get_file_content);
 
-
-    // println!("Starting server on http://127.0.0.1:8080");
-
-    // warp::serve(upload).run(([127, 0, 0, 1], 8080)).await;
-    Ok(upload.boxed().into())
+        let routes = upload_route.or(verify_route);
+    
+    // Add this to your warp::serve or shuttle_warp::ShuttleWarp
+    Ok((routes).boxed().into())
 }
 
 fn with_state(
@@ -90,51 +90,60 @@ async fn upload_files(
 ) -> Result<impl Reply, Rejection> {
     ensure_storage_dir_exists();
 
+    let mut file_contents: Vec<String> = Vec::new();
+    let mut file_store = state.file_store.write().await;
+
     for file in request.files {
-        let file_path = Path::new(STORAGE_DIR).join(file.name);
-        if let Err(e) = fs::write(&file_path, file.content) {
+        let file_path = Path::new(STORAGE_DIR).join(&file.name);
+        if let Err(_) = fs::write(&file_path, &file.content) {
             return Err(warp::reject::custom(CustomError::new("Failed to write file")));
         }
+        file_store.insert(file.name.clone(), file.content.clone());
+        file_contents.push(file.content.clone());
         println!("Stored file {:?}", file_path.file_name().unwrap());
     }
 
-    Ok(warp::reply::with_status(
-        "Files uploaded successfully",
-        warp::http::StatusCode::OK,
-    ))
+    let mut merkle_tree = MerkleTree::new();
+    merkle_tree.build(&file_contents);
+    let root_hash = merkle_tree.root().unwrap_or_default();
+
+    *state.merkle_tree.write().await = Some(merkle_tree);
+    *state.root_hash.write().await = Some(root_hash.clone());
+
+    Ok(warp::reply::json(&json!({
+        "message": "Files uploaded successfully",
+        "root_hash": root_hash
+    })))
 }
 
 
-
-/* 
 async fn get_file_content(
-    query: HashMap<String, String>,
+    file_name: String,
     state: Arc<AppState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let path = query.get("path").ok_or(warp::reject::not_found())?.clone();
-    let file_store = state.file_store.lock().unwrap();
-
+    println!("Received request for file: {}", file_name);
+    let file_store = state.file_store.read().await;
+    
     let content = file_store
-        .get(&path)
+        .get(&file_name)
         .ok_or(warp::reject::not_found())?
         .clone();
 
-    // Generate proof if needed
-    let root_hash = query
-        .get("root_hash")
-        .ok_or(warp::reject::not_found())?
-        .clone();
-    let merkle_trees = state.merkle_trees.lock().unwrap();
-    let merkle_tree = merkle_trees
-        .get(&root_hash)
-        .ok_or(warp::reject::not_found())?;
 
-    let index = file_store.keys().position(|p| p == &path).unwrap_or(0);
-    let proof = merkle_tree.get_merkle_proof(index);
+    let merkle_tree = state.merkle_tree.read().await;
+    let tree = merkle_tree.as_ref().ok_or(warp::reject::not_found())?;
+    
+    let index = file_store.keys().position(|k| k == &file_name).unwrap_or(0);
+    let proof = tree.get_merkle_proof(index);
 
-    Ok(warp::reply::json(&FileResponse { content, proof }))
+    let response = json!({
+        "proof": proof,
+        "content": content
+    });
+
+    Ok(warp::reply::json(&response))
 }
- */
+ 
 
  #[derive(Debug)]
 struct CustomError {

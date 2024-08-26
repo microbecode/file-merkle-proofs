@@ -25,6 +25,7 @@ struct FileData {
 }
 
 // Example: cargo run --bin client -- upload http://127.0.0.1:8000/upload file1.txt file2.txt
+// Example2: cargo run --bin client -- verify http://127.0.0.1:8000 file2.txt
 #[tokio::main]
 async fn main() {
     let matches = Command::new("Merkle Client")
@@ -134,16 +135,18 @@ async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::E
     let client = Client::new();
 
     let response = client
-        .get(format!("{}/verify/{}", server_url, file_name))
+        .get(format!("{}/file/{}", server_url, file_name))
         .send()
         .await?
         .error_for_status()?;
 
-    let proof: Vec<String> = response.json().await?;
+    let response_data: serde_json::Value = response.json().await?;
+    let proof: Vec<String> = serde_json::from_value(response_data["proof"].clone()).unwrap();
+    let content: String = serde_json::from_value(response_data["content"].clone()).unwrap();
 
-    let stored_state = ClientState::load(STORAGE_DIR).expect("Failed to load client state");
+    let stored_state = ClientState::load(Path::new(STORAGE_DIR).join(STATE_STORAGE)).expect("Failed to load client state");
     let mut tree = MerkleTree::new();
-    tree.build(&proof);
+    tree.build(&[content]);
 
     if tree.root().unwrap_or_default() == stored_state.root_hash {
         println!("File {} is verified and correct.", file_name);

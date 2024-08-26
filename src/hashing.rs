@@ -5,22 +5,17 @@ use std::io::{self, Read};
 
 /// Function to calculate the SHA-256 hash of a file and return it as a hexadecimal `String`
 pub fn hash_file(file_path: &str) -> io::Result<String> {
-    let mut hasher = Sha256::new();
     let mut file = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    Ok(hash_bytes(&buffer))
+}
 
-    // Read the file in chunks to avoid loading the entire file into memory
-    let mut buffer = [0u8; 1024];
-    loop {
-        let bytes_read = file.read(&mut buffer)?;
-        if bytes_read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..bytes_read]);
-    }
-
-    // Finalize the hash and convert it to a hexadecimal string
+pub fn hash_bytes(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
     let result = hasher.finalize();
-    Ok(hex::encode(result))
+    hex::encode(result)
 }
 
 #[cfg(test)]
