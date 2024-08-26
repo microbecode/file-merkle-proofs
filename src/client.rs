@@ -2,6 +2,7 @@ use clap::Arg;
 use clap::ArgAction;
 use clap::Command;
 use merkleproofs::client_state::ClientState;
+use merkleproofs::merkle_tree::calculate_hash;
 use merkleproofs::merkle_tree::MerkleTree;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -97,6 +98,10 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     // Compute Merkle tree root
     let file_contents: Vec<String> = files.iter().map(|file| file.content.clone()).collect();
     let mut tree = MerkleTree::new();
+    for cont in file_contents.clone() {
+        println!("File {} hash {}", cont, calculate_hash(&cont));
+    }
+    
     tree.build(&file_contents);
     let root_hash = tree
         .root()
@@ -141,14 +146,26 @@ async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::E
         .error_for_status()?;
 
     let response_data: serde_json::Value = response.json().await?;
-    let proof: Vec<String> = serde_json::from_value(response_data["proof"].clone()).unwrap();
+    println!("Received response: {}", response_data);
+    let proof: Vec<(String, bool)> = serde_json::from_value(response_data["proof"].clone()).unwrap();
     let content: String = serde_json::from_value(response_data["content"].clone()).unwrap();
 
     let stored_state = ClientState::load(Path::new(STORAGE_DIR).join(STATE_STORAGE)).expect("Failed to load client state");
-    let mut tree = MerkleTree::new();
-    tree.build(&[content]);
+    
+    // Calculate the hash of the content
+    let mut current_hash = calculate_hash(&content);
 
-    if tree.root().unwrap_or_default() == stored_state.root_hash {
+    // Verify the Merkle proof
+    for (sibling, is_right) in proof.iter() {
+        let combined = if *is_right {
+            format!("{}{}", current_hash, sibling)
+        } else {
+            format!("{}{}", sibling, current_hash)
+        };
+        current_hash = calculate_hash(&combined);
+    }
+
+    if current_hash == stored_state.root_hash {
         println!("File {} is verified and correct.", file_name);
     } else {
         println!("File {} verification failed.", file_name);

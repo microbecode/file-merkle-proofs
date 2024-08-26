@@ -1,5 +1,3 @@
-//This code is adjusted from an earlier version I wrote: https://github.com/microbecode/stark-from-zero/blob/master/src/merkle_tree.rs
-
 use hex;
 use sha2::{Digest, Sha256};
 
@@ -10,7 +8,7 @@ pub struct MerkleTree {
 }
 
 /// Function to calculate SHA-256 hash of a `String`
-fn calculate_hash(s: &str) -> String {
+pub fn calculate_hash(s: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(s.as_bytes()); // Hash the bytes of the string
     let result = hasher.finalize();
@@ -34,6 +32,10 @@ impl MerkleTree {
             hashes.push(hashes[hashes.len() - 1].clone());
         }
 
+      /*   for cont in hashes.clone() {
+            println!("Got hashes in tree {}", cont);
+        } */
+
         let mut nodes = Vec::new();
         nodes.push(hashes.clone());
 
@@ -50,8 +52,15 @@ impl MerkleTree {
             }
 
             nodes.push(new_hashes.clone());
+
+            for cont in new_hashes.clone().clone() {
+                println!("Gott hashes in tree {}", cont);
+            }
+
             hashes = new_hashes;
         }
+
+        
 
         // Set the root and levels
         self.root = hashes.pop();
@@ -62,7 +71,7 @@ impl MerkleTree {
         self.root.clone()
     }
 
-    pub fn get_merkle_proof(&self, index: usize) -> Option<Vec<String>> {
+    pub fn get_merkle_proof(&self, index: usize) -> Option<Vec<(String, bool)>> {
         if index >= self.levels[0].len() {
             return None; // Out of bounds
         }
@@ -71,36 +80,12 @@ impl MerkleTree {
         let mut idx = index;
 
         // Iterate over each level of the tree
-        for level in self.levels.iter() {
-            if level.len() == 1 {
-                // If we are at the root level, add the root to the proof and stop
-                proof.push(level[0].clone());
-                break;
+        for level in self.levels.iter().take(self.levels.len() - 1) {
+            let sibling_idx = if idx % 2 == 0 { idx + 1 } else { idx - 1 };
+            if sibling_idx < level.len() {
+                proof.push((level[sibling_idx].clone(), idx % 2 == 0));
             }
-
-            // Determine the sibling index
-            let sibling_idx = if idx % 2 == 0 {
-                // If index is even, the sibling is the next index
-                if idx + 1 < level.len() {
-                    idx + 1
-                } else {
-                    continue; // No sibling for the last element in an odd-numbered level
-                }
-            } else {
-                // If index is odd, the sibling is the previous index
-                idx - 1
-            };
-
-            // Add the sibling hash to the proof
-            proof.push(level[sibling_idx].clone());
-
-            // Move to the parent level
             idx /= 2;
-        }
-
-        // The root hash should be included in the proof, but only if it's not already added
-        if !proof.contains(&self.root.clone().unwrap_or_default()) {
-            proof.push(self.root.clone().unwrap_or_default());
         }
 
         Some(proof)
@@ -254,9 +239,9 @@ mod tests {
             calculate_hash(&format!("{}{}", expected_mid_node1, expected_mid_node2));
 
         // Function to verify the proof
-        fn verify_proof(leaf_index: usize, proof: Vec<String>, expected_proof: Vec<String>) {
+        fn verify_proof(leaf_index: usize, proof: Vec<(String, bool)>, expected_proof: Vec<String>) {
             assert_eq!(proof.len(), expected_proof.len());
-            for (elem1, elem2) in proof.iter().zip(expected_proof.iter()) {
+            for ((elem1, _), elem2) in proof.iter().zip(expected_proof.iter()) {
                 assert_eq!(elem1, elem2);
             }
         }
