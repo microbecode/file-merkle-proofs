@@ -27,7 +27,7 @@ mod tests {
     #[test]
     fn test_hash_file() {
         let content = b"Hello, world!";
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         write(temp_file.path(), content).expect("Failed to write to temp file");
 
         let expected_hash_hex = "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn test_hash_empty_file() {
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
 
         let expected_hash_hex = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 

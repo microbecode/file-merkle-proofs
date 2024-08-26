@@ -6,7 +6,6 @@ use merkleproofs::merkle_tree::calculate_hash;
 use merkleproofs::merkle_tree::MerkleTree;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::fs;
 use std::path::Path;
 
@@ -101,7 +100,7 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     for cont in file_contents.clone() {
         println!("File {} hash {}", cont, calculate_hash(&cont));
     }
-    
+
     tree.build(&file_contents);
     let root_hash = tree
         .root()
@@ -142,16 +141,25 @@ async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::E
     let response = client
         .get(format!("{}/file/{}", server_url, file_name))
         .send()
-        .await?
-        .error_for_status()?;
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_message = response.text().await?;
+        println!("Server error: {} - {}", status, error_message);
+        return Ok(());
+    }
 
     let response_data: serde_json::Value = response.json().await?;
     println!("Received response: {}", response_data);
-    let proof: Vec<(String, bool)> = serde_json::from_value(response_data["proof"].clone()).unwrap();
+
+    let proof: Vec<(String, bool)> =
+        serde_json::from_value(response_data["proof"].clone()).unwrap();
     let content: String = serde_json::from_value(response_data["content"].clone()).unwrap();
 
-    let stored_state = ClientState::load(Path::new(STORAGE_DIR).join(STATE_STORAGE)).expect("Failed to load client state");
-    
+    let stored_state = ClientState::load(Path::new(STORAGE_DIR).join(STATE_STORAGE))
+        .expect("Failed to load client state");
+
     // Calculate the hash of the content
     let mut current_hash = calculate_hash(&content);
 

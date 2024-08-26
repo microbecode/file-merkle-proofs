@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use warp::reject::Reject;
 use std::collections::HashMap;
-use std::{fmt, fs};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::{fmt, fs};
 use tokio::sync::RwLock;
+use warp::reject::Reject;
 use warp::Filter;
 use warp::{Rejection, Reply};
 
@@ -34,8 +34,8 @@ struct FileResponse {
 #[derive(Clone)]
 struct AppState {
     file_store: Arc<RwLock<HashMap<String, String>>>, // File paths to file contents
-    merkle_tree: Arc<RwLock<Option<MerkleTree>>>, // The single Merkle tree
-    root_hash: Arc<RwLock<Option<String>>>, // The root hash of the Merkle tree
+    merkle_tree: Arc<RwLock<Option<MerkleTree>>>,     // The single Merkle tree
+    root_hash: Arc<RwLock<Option<String>>>,           // The root hash of the Merkle tree
 }
 
 impl AppState {
@@ -66,13 +66,13 @@ async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
             upload_files(request, state).await
         });
 
-        let verify_route = warp::get()
+    let verify_route = warp::get()
         .and(warp::path!("file" / String))
         .and(with_state(state.clone()))
         .and_then(get_file_content);
 
-        let routes = upload_route.or(verify_route);
-    
+    let routes = upload_route.or(verify_route);
+
     // Add this to your warp::serve or shuttle_warp::ShuttleWarp
     Ok((routes).boxed().into())
 }
@@ -82,7 +82,6 @@ fn with_state(
 ) -> impl Filter<Extract = (Arc<AppState>,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || state.clone())
 }
-
 
 async fn upload_files(
     request: UploadRequest,
@@ -96,7 +95,9 @@ async fn upload_files(
     for file in request.files {
         let file_path = Path::new(STORAGE_DIR).join(&file.name);
         if let Err(_) = fs::write(&file_path, &file.content) {
-            return Err(warp::reject::custom(CustomError::new("Failed to write file")));
+            return Err(warp::reject::custom(CustomError::new(
+                "Failed to write file",
+            )));
         }
         file_store.insert(file.name.clone(), file.content.clone());
         file_contents.push(file.content.clone());
@@ -116,23 +117,26 @@ async fn upload_files(
     })))
 }
 
-
 async fn get_file_content(
     file_name: String,
     state: Arc<AppState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     println!("Received request for file: {}", file_name);
     let file_store = state.file_store.read().await;
-    
-    let content = file_store
-        .get(&file_name)
-        .ok_or(warp::reject::not_found())?
-        .clone();
 
+    let content = match file_store.get(&file_name) {
+        Some(content) => content.clone(),
+        None => {
+            return Err(warp::reject::custom(CustomError::new(&format!(
+                "File '{}' not found",
+                file_name
+            ))))
+        }
+    };
 
     let merkle_tree = state.merkle_tree.read().await;
     let tree = merkle_tree.as_ref().ok_or(warp::reject::not_found())?;
-    
+
     let index = file_store.keys().position(|k| k == &file_name).unwrap_or(0);
     let proof = tree.get_merkle_proof(index);
 
@@ -143,9 +147,8 @@ async fn get_file_content(
 
     Ok(warp::reply::json(&response))
 }
- 
 
- #[derive(Debug)]
+#[derive(Debug)]
 struct CustomError {
     message: String,
 }
