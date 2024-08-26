@@ -243,26 +243,18 @@ mod tests {
         // Test proofs for each leaf
         {
             let proof = tree.get_merkle_proof(0).unwrap();
-            let expected_proof = vec![
-                expected_leaf_2,
-                expected_mid_node2.clone(),
-                expected_root.clone(),
-            ];
+            let expected_proof = vec![expected_leaf_2, expected_mid_node2.clone()];
             verify_proof(proof, expected_proof);
         }
-        /*  {
+        {
             let proof = tree.get_merkle_proof(1).unwrap();
-            let expected_proof = vec![
-                expected_leaf_1,
-                expected_mid_node2.clone(),
-                expected_root.clone(),
-            ];
+            let expected_proof = vec![expected_leaf_1, expected_mid_node2.clone()];
             verify_proof(proof, expected_proof);
         }
         {
             let proof = tree.get_merkle_proof(2).unwrap();
-            let expected_proof = vec![expected_leaf_4, expected_mid_node1, expected_root];
+            let expected_proof = vec![expected_leaf_4, expected_mid_node1];
             verify_proof(proof, expected_proof);
-        } */
+        }
     }
 }
