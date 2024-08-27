@@ -24,7 +24,7 @@ struct FileData {
     content: String,
 }
 
-// Example: cargo run --bin client -- upload http://127.0.0.1:8000/upload file1.txt file2.txt
+// Example: cargo run --bin client -- upload http://127.0.0.1:8000 file1.txt file2.txt
 // Example2: cargo run --bin client -- verify http://127.0.0.1:8000 file2.txt
 #[tokio::main]
 async fn main() {
@@ -131,6 +131,21 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
 
     println!("Response status: {:?}", status);
     println!("Response body: {:?}", body);
+
+    // If upload was successful, delete local files
+    if status.is_success() {
+        for file_name in file_paths {
+            let path = Path::new(STORAGE_DIR).join(file_name);
+            if let Err(e) = fs::remove_file(&path) {
+                eprintln!("Failed to delete file {}: {}", file_name, e);
+            } else {
+                println!("Deleted local file: {}", file_name);
+            }
+        }
+        println!("All local files have been deleted after successful upload.");
+    } else {
+        eprintln!("Upload failed. Local files were not deleted.");
+    }
 
     Ok(())
 }
