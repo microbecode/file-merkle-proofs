@@ -26,6 +26,7 @@ struct FileData {
 
 // Example: cargo run --bin client -- upload http://127.0.0.1:8000 file1.txt file2.txt
 // Example2: cargo run --bin client -- verify http://127.0.0.1:8000 file2.txt
+// cargo run --bin client -- delete_all http://127.0.0.1:8000
 #[tokio::main]
 async fn main() {
     let matches = Command::new("Merkle Client")
@@ -48,6 +49,11 @@ async fn main() {
                 .arg(Arg::new("server_url").help("The server URL").required(true))
                 .arg(Arg::new("file").help("The file to verify").required(true)),
         )
+        .subcommand(
+            Command::new("delete_all")
+                .about("Deletes all files and state from the server")
+                .arg(Arg::new("server_url").help("The server URL").required(true)),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -68,6 +74,12 @@ async fn main() {
             verify_file(server_url, file)
                 .await
                 .expect("Failed to verify file");
+        }
+        Some(("delete_all", sub_m)) => {
+            let server_url = sub_m.get_one::<String>("server_url").unwrap();
+            delete_all_server_data(server_url)
+                .await
+                .expect("Failed to delete all server data");
         }
         _ => eprintln!("Unknown command"),
     }
@@ -192,6 +204,25 @@ async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::E
         println!("File {} is verified and correct.", file_name);
     } else {
         println!("File {} verification failed.", file_name);
+    }
+
+    Ok(())
+}
+
+async fn delete_all_server_data(server_url: &str) -> Result<(), reqwest::Error> {
+    let client = Client::new();
+    let response = client
+        .delete(format!("{}/delete_all", server_url))
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        println!("All server data has been deleted successfully.");
+    } else {
+        eprintln!(
+            "Failed to delete server data. Status: {:?}",
+            response.status()
+        );
     }
 
     Ok(())

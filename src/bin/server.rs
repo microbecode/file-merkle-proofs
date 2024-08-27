@@ -71,7 +71,12 @@ async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
         .and(with_state(state.clone()))
         .and_then(get_file_content);
 
-    let routes = upload_route.or(verify_route);
+    let delete_route = warp::delete()
+        .and(warp::path("delete_all"))
+        .and(with_state(state.clone()))
+        .and_then(delete_all);
+
+    let routes = upload_route.or(verify_route).or(delete_route);
 
     // Add this to your warp::serve or shuttle_warp::ShuttleWarp
     Ok((routes).boxed().into())
@@ -146,6 +151,34 @@ async fn get_file_content(
     });
 
     Ok(warp::reply::json(&response))
+}
+
+async fn delete_all(state: Arc<AppState>) -> Result<impl Reply, Rejection> {
+    // Clear the file store
+    let mut file_store = state.file_store.write().await;
+    file_store.clear();
+
+    // Reset the Merkle tree and root hash
+    let mut merkle_tree = state.merkle_tree.write().await;
+    *merkle_tree = None;
+
+    let mut root_hash = state.root_hash.write().await;
+    *root_hash = None;
+
+    // Delete all files in the storage directory
+    if let Err(e) = fs::remove_dir_all(STORAGE_DIR) {
+        eprintln!("Failed to delete storage directory: {}", e);
+        return Err(warp::reject::custom(CustomError::new(
+            "Failed to delete storage directory",
+        )));
+    }
+
+    // Recreate the empty storage directory
+    ensure_storage_dir_exists();
+
+    Ok(warp::reply::json(&json!({
+        "message": "All files and state have been deleted"
+    })))
 }
 
 #[derive(Debug)]
