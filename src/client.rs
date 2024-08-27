@@ -18,7 +18,7 @@ struct UploadRequest {
     files: Vec<FileData>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct FileData {
     name: String,
     content: String,
@@ -111,7 +111,11 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     };
 
     // Compute Merkle tree root
-    let file_contents: Vec<String> = files.iter().map(|file| file.content.clone()).collect();
+    let file_contents: Vec<String> = files
+        .clone()
+        .iter()
+        .map(|file| file.content.clone())
+        .collect();
     let mut tree = MerkleTree::new();
 
     tree.build(&file_contents);
@@ -130,7 +134,7 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     // Prepare the upload request with file data
     let request = UploadRequest {
         root_hash: root_hash.clone(),
-        files,
+        files: files.clone(),
     };
 
     let response = Client::new()
@@ -147,15 +151,8 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
 
     // If upload was successful, delete local files
     if status.is_success() {
-        for file_name in file_paths {
-            let path = Path::new(STORAGE_DIR).join(file_name);
-            if let Err(e) = fs::remove_file(&path) {
-                eprintln!("Failed to delete file {}: {}", file_name, e);
-            } else {
-                println!("Deleted local file: {}", file_name);
-            }
-        }
-        println!("All local files have been deleted after successful upload.");
+        delete_uploaded_files(&files);
+        println!("All uploaded files have been deleted from local storage.");
     } else {
         eprintln!("Upload failed. Local files were not deleted.");
     }
@@ -163,25 +160,37 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     Ok(())
 }
 
+fn delete_uploaded_files(files: &[FileData]) {
+    for file in files {
+        let path = Path::new(STORAGE_DIR).join(&file.name);
+        if let Err(e) = fs::remove_file(&path) {
+            eprintln!("Failed to delete file {}: {}", file.name, e);
+        } else {
+            println!("Deleted local file: {}", file.name);
+        }
+    }
+}
+
 fn read_all_files_from_storage() -> Vec<FileData> {
     let storage_path = Path::new(STORAGE_DIR);
-    fs::read_dir(storage_path)
-        .expect("Failed to read storage directory")
-        .filter_map(|entry| {
-            let entry = entry.expect("Failed to read directory entry");
-            let path = entry.path();
-            if path.is_file() && path.file_name().unwrap() != STATE_STORAGE {
-                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-                let content = fs::read_to_string(&path).expect("Unable to read file");
-                Some(FileData {
-                    name: file_name,
-                    content,
-                })
-            } else {
-                None
-            }
-        })
-        .collect()
+    let mut files = Vec::new();
+
+    for entry in fs::read_dir(storage_path).expect("Failed to read storage directory") {
+        let entry = entry.expect("Failed to read directory entry");
+        let path = entry.path();
+        if path.is_file() && path.file_name().unwrap() != STATE_STORAGE {
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let content = fs::read_to_string(&path).expect("Unable to read file");
+            files.push(FileData {
+                name: file_name,
+                content,
+            });
+        }
+    }
+
+    // Sort the files by name
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    files
 }
 
 fn read_specified_files(file_paths: &[String]) -> Vec<FileData> {

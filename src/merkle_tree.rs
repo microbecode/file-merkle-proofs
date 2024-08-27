@@ -26,13 +26,11 @@ impl MerkleTree {
     /// Build the Merkle tree from a list of elements
     /// For example, with three elements A, B, C, the tree will be:
     ///
-    /// ```
-    ///     root
-    ///    /    \
-    ///    D    E      --- level 1, where D = hash(AB) and E = hash(CC)
-    ///   / \  / \
-    ///  A  B C  C     --- level 0
-    /// ```
+    //     root
+    //    /    \
+    //    D    E      // level 1, where D = hash(AB) and E = hash(CC)
+    //   / \  / \
+    //  A  B C  C     // level 0
     pub fn build(&mut self, elements: &[String]) {
         // Hash the input elements
         let mut hashes: Vec<String> = elements.iter().map(|e| calculate_hash(e)).collect();
