@@ -25,8 +25,9 @@ struct FileData {
 }
 
 // Example: cargo run --bin client -- upload http://127.0.0.1:8000 file1.txt file2.txt
-// Example2: cargo run --bin client -- verify http://127.0.0.1:8000 1
-// cargo run --bin client -- delete_all http://127.0.0.1:8000
+// Example: cargo run --bin client -- upload http://127.0.0.1:8000 all
+// Example: cargo run --bin client -- verify http://127.0.0.1:8000 1
+// Example: cargo run --bin client -- delete_all http://127.0.0.1:8000
 #[tokio::main]
 async fn main() {
     let matches = Command::new("Merkle Client")
@@ -38,10 +39,10 @@ async fn main() {
                 .arg(Arg::new("server_url").help("The server URL").required(true))
                 .arg(
                     Arg::new("files")
-                        .help("List of files to upload")
+                        .help("List of files to upload, or 'all' to upload all files in the storage directory")
                         .required(true)
                         .action(ArgAction::Append),
-                ), // Use Append action
+                ),
         )
         .subcommand(
             Command::new("verify")
@@ -101,18 +102,13 @@ fn ensure_storage_dir_exists() {
 
 async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), reqwest::Error> {
     ensure_storage_dir_exists();
+
     // Read file contents and prepare file data
-    let files: Vec<FileData> = file_paths
-        .iter()
-        .map(|file_name| {
-            let path = Path::new(STORAGE_DIR).join(file_name);
-            let content = fs::read_to_string(&path).expect("Unable to read file");
-            FileData {
-                name: file_name.clone(),
-                content,
-            }
-        })
-        .collect();
+    let files = if file_paths.len() == 1 && file_paths[0] == "all" {
+        read_all_files_from_storage()
+    } else {
+        read_specified_files(file_paths)
+    };
 
     // Compute Merkle tree root
     let file_contents: Vec<String> = files.iter().map(|file| file.content.clone()).collect();
@@ -150,7 +146,7 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     println!("Response body: {:?}", body);
 
     // If upload was successful, delete local files
-    /*   if status.is_success() {
+    if status.is_success() {
         for file_name in file_paths {
             let path = Path::new(STORAGE_DIR).join(file_name);
             if let Err(e) = fs::remove_file(&path) {
@@ -162,9 +158,44 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
         println!("All local files have been deleted after successful upload.");
     } else {
         eprintln!("Upload failed. Local files were not deleted.");
-    } */
+    }
 
     Ok(())
+}
+
+fn read_all_files_from_storage() -> Vec<FileData> {
+    let storage_path = Path::new(STORAGE_DIR);
+    fs::read_dir(storage_path)
+        .expect("Failed to read storage directory")
+        .filter_map(|entry| {
+            let entry = entry.expect("Failed to read directory entry");
+            let path = entry.path();
+            if path.is_file() && path.file_name().unwrap() != STATE_STORAGE {
+                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+                let content = fs::read_to_string(&path).expect("Unable to read file");
+                Some(FileData {
+                    name: file_name,
+                    content,
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn read_specified_files(file_paths: &[String]) -> Vec<FileData> {
+    file_paths
+        .iter()
+        .map(|file_name| {
+            let path = Path::new(STORAGE_DIR).join(file_name);
+            let content = fs::read_to_string(&path).expect("Unable to read file");
+            FileData {
+                name: file_name.clone(),
+                content,
+            }
+        })
+        .collect()
 }
 
 async fn verify_file(server_url: &str, file_index: usize) -> Result<(), reqwest::Error> {
