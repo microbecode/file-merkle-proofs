@@ -33,15 +33,17 @@ struct FileResponse {
 
 #[derive(Clone)]
 struct AppState {
-    file_store: Arc<RwLock<HashMap<String, String>>>, // File paths to file contents
-    merkle_tree: Arc<RwLock<Option<MerkleTree>>>,     // The single Merkle tree
-    root_hash: Arc<RwLock<Option<String>>>,           // The root hash of the Merkle tree
+    file_store: Arc<RwLock<Vec<(String, String)>>>, // Ordered list of (filename, content)
+    file_index: Arc<RwLock<HashMap<String, usize>>>, // Filename to index mapping
+    merkle_tree: Arc<RwLock<Option<MerkleTree>>>,   // The single Merkle tree
+    root_hash: Arc<RwLock<Option<String>>>,         // The root hash of the Merkle tree
 }
 
 impl AppState {
     fn new() -> Self {
         Self {
-            file_store: Arc::new(RwLock::new(HashMap::new())),
+            file_store: Arc::new(RwLock::new(Vec::new())),
+            file_index: Arc::new(RwLock::new(HashMap::new())),
             merkle_tree: Arc::new(RwLock::new(None)),
             root_hash: Arc::new(RwLock::new(None)),
         }
@@ -67,7 +69,7 @@ async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
         });
 
     let verify_route = warp::get()
-        .and(warp::path!("file" / String))
+        .and(warp::path!("file" / usize))
         .and(with_state(state.clone()))
         .and_then(get_file_content);
 
@@ -96,6 +98,7 @@ async fn upload_files(
 
     let mut file_contents: Vec<String> = Vec::new();
     let mut file_store = state.file_store.write().await;
+    let mut file_index = state.file_index.write().await;
 
     for file in request.files {
         let file_path = Path::new(STORAGE_DIR).join(&file.name);
@@ -104,9 +107,21 @@ async fn upload_files(
                 "Failed to write file",
             )));
         }
-        file_store.insert(file.name.clone(), file.content.clone());
+        let index = file_store.len();
+        file_store.push((file.name.clone(), file.content.clone()));
+        file_index.insert(file.name.clone(), index);
         file_contents.push(file.content.clone());
-        println!("Stored file {:?}", file_path.file_name().unwrap());
+        println!(
+            "Stored file {:?} at index {}",
+            file_path.file_name().unwrap(),
+            index
+        );
+    }
+
+    // Print out the contents of the file_store after uploading
+    println!("Contents of file_store after upload:");
+    for (index, (name, content)) in file_store.iter().enumerate() {
+        println!("Index {}: {} ({})", index, name, content.len());
     }
 
     let mut merkle_tree = MerkleTree::new();
@@ -123,40 +138,42 @@ async fn upload_files(
 }
 
 async fn get_file_content(
-    file_name: String,
+    file_index: usize,
     state: Arc<AppState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    println!("Received request for file: {}", file_name);
+    println!(
+        "Received verification request for file index: {}",
+        file_index
+    );
     let file_store = state.file_store.read().await;
 
-    let content = match file_store.get(&file_name) {
-        Some(content) => content.clone(),
-        None => {
-            return Err(warp::reject::custom(CustomError::new(&format!(
-                "File '{}' not found",
-                file_name
-            ))))
-        }
-    };
+    let (file_name, content) = file_store.get(file_index).ok_or_else(|| {
+        warp::reject::custom(CustomError::new(&format!(
+            "File at index {} not found",
+            file_index
+        )))
+    })?;
 
     let merkle_tree = state.merkle_tree.read().await;
     let tree = merkle_tree.as_ref().ok_or(warp::reject::not_found())?;
 
-    let index = file_store.keys().position(|k| k == &file_name).unwrap_or(0);
-    let proof = tree.get_merkle_proof(index);
+    let proof = tree.get_merkle_proof(file_index);
 
     let response = json!({
-        "proof": proof,
-        "content": content
+        "name": file_name,
+        "content": content,
+        "proof": proof
     });
 
     Ok(warp::reply::json(&response))
 }
 
 async fn delete_all(state: Arc<AppState>) -> Result<impl Reply, Rejection> {
-    // Clear the file store
+    // Clear the file store and index
     let mut file_store = state.file_store.write().await;
     file_store.clear();
+    let mut file_index = state.file_index.write().await;
+    file_index.clear();
 
     // Reset the Merkle tree and root hash
     let mut merkle_tree = state.merkle_tree.write().await;

@@ -23,6 +23,16 @@ impl MerkleTree {
         }
     }
 
+    /// Build the Merkle tree from a list of elements
+    /// For example, with three elements A, B, C, the tree will be:
+    ///
+    /// ```
+    ///     root
+    ///    /    \
+    ///    D    E      --- level 1, where D = hash(AB) and E = hash(CC)
+    ///   / \  / \
+    ///  A  B C  C     --- level 0
+    /// ```
     pub fn build(&mut self, elements: &[String]) {
         // Hash the input elements
         let mut hashes: Vec<String> = elements.iter().map(|e| calculate_hash(e)).collect();
@@ -49,10 +59,6 @@ impl MerkleTree {
 
             nodes.push(new_hashes.clone());
 
-            /*             for cont in new_hashes.clone().clone() {
-                           println!("Got hashes in tree {}", cont);
-                       }
-            */
             hashes = new_hashes;
         }
 
@@ -71,15 +77,18 @@ impl MerkleTree {
         }
 
         let mut proof = Vec::new();
-        let mut idx = index;
+        let mut current_index = index;
 
-        // Iterate over each level of the tree
+        // Iterate over each level of the tree, except the root
         for level in self.levels.iter().take(self.levels.len() - 1) {
-            let sibling_idx = if idx % 2 == 0 { idx + 1 } else { idx - 1 };
-            if sibling_idx < level.len() {
-                proof.push((level[sibling_idx].clone(), idx % 2 == 0));
+            let sibling_index = current_index ^ 1; // XOR with 1 flips the last bit
+
+            if sibling_index < level.len() {
+                // The boolean indicates whether the sibling is on the right
+                proof.push((level[sibling_index].clone(), sibling_index > current_index));
             }
-            idx /= 2;
+
+            current_index /= 2; // Move to the parent in the next level
         }
 
         Some(proof)

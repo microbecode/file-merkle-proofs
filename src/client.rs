@@ -25,7 +25,7 @@ struct FileData {
 }
 
 // Example: cargo run --bin client -- upload http://127.0.0.1:8000 file1.txt file2.txt
-// Example2: cargo run --bin client -- verify http://127.0.0.1:8000 file2.txt
+// Example2: cargo run --bin client -- verify http://127.0.0.1:8000 1
 // cargo run --bin client -- delete_all http://127.0.0.1:8000
 #[tokio::main]
 async fn main() {
@@ -47,7 +47,11 @@ async fn main() {
             Command::new("verify")
                 .about("Verifies a file from the server")
                 .arg(Arg::new("server_url").help("The server URL").required(true))
-                .arg(Arg::new("file").help("The file to verify").required(true)),
+                .arg(
+                    Arg::new("file_index")
+                        .help("The index of the file to verify")
+                        .required(true),
+                ),
         )
         .subcommand(
             Command::new("delete_all")
@@ -70,8 +74,12 @@ async fn main() {
         }
         Some(("verify", sub_m)) => {
             let server_url = sub_m.get_one::<String>("server_url").unwrap();
-            let file = sub_m.get_one::<String>("file").unwrap();
-            verify_file(server_url, file)
+            let file_index: usize = sub_m
+                .get_one::<String>("file_index")
+                .unwrap()
+                .parse()
+                .expect("File index must be a number");
+            verify_file(server_url, file_index)
                 .await
                 .expect("Failed to verify file");
         }
@@ -109,9 +117,6 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     // Compute Merkle tree root
     let file_contents: Vec<String> = files.iter().map(|file| file.content.clone()).collect();
     let mut tree = MerkleTree::new();
-    for cont in file_contents.clone() {
-        println!("File {} hash {}", cont, calculate_hash(&cont));
-    }
 
     tree.build(&file_contents);
     let root_hash = tree
@@ -145,7 +150,7 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     println!("Response body: {:?}", body);
 
     // If upload was successful, delete local files
-    if status.is_success() {
+    /*   if status.is_success() {
         for file_name in file_paths {
             let path = Path::new(STORAGE_DIR).join(file_name);
             if let Err(e) = fs::remove_file(&path) {
@@ -157,16 +162,16 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
         println!("All local files have been deleted after successful upload.");
     } else {
         eprintln!("Upload failed. Local files were not deleted.");
-    }
+    } */
 
     Ok(())
 }
 
-async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::Error> {
+async fn verify_file(server_url: &str, file_index: usize) -> Result<(), reqwest::Error> {
     let client = Client::new();
 
     let response = client
-        .get(format!("{}/file/{}", server_url, file_name))
+        .get(format!("{}/file/{}", server_url, file_index))
         .send()
         .await?;
 
@@ -181,8 +186,11 @@ async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::E
     println!("Received response: {}", response_data);
 
     let proof: Vec<(String, bool)> =
-        serde_json::from_value(response_data["proof"].clone()).unwrap();
-    let content: String = serde_json::from_value(response_data["content"].clone()).unwrap();
+        serde_json::from_value(response_data["proof"].clone()).unwrap_or_else(|_| Vec::new());
+    let content: String =
+        serde_json::from_value(response_data["content"].clone()).unwrap_or_default();
+    let file_name: String =
+        serde_json::from_value(response_data["name"].clone()).unwrap_or_default();
 
     let stored_state = ClientState::load(Path::new(STORAGE_DIR).join(STATE_STORAGE))
         .expect("Failed to load client state");
@@ -201,9 +209,17 @@ async fn verify_file(server_url: &str, file_name: &str) -> Result<(), reqwest::E
     }
 
     if current_hash == stored_state.root_hash {
-        println!("File {} is verified and correct.", file_name);
+        println!(
+            "File '{}' at index {} is verified and correct.",
+            file_name, file_index
+        );
     } else {
-        println!("File {} verification failed.", file_name);
+        println!(
+            "File '{}' at index {} verification failed.",
+            file_name, file_index
+        );
+        println!("Calculated hash: {}", current_hash);
+        println!("Stored root hash: {}", stored_state.root_hash);
     }
 
     Ok(())
