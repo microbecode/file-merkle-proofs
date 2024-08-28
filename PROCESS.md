@@ -6,7 +6,7 @@ This document describes the process of creating this project and its challenges.
 
 The process of writing this project was somewhat time consuming, but rewarding. Around midway in the project, I started trialing (Cursor)[https://www.cursor.com/] for code completion and correction. This proved to be rather useful.
 
-Overall, this project went quite well. There are a lot of things that could be still added, but this was never meant to be fully production ready. Biggest challenges were related to components I was not familiar with, for example Shuttle for deployment.
+Overall, this project went quite well. There are a lot of things that could be still added, but this was never meant to be fully production ready. Biggest challenges were related to components I was not familiar with, for example Shuttle for deployment. Also getting the Merkle Tree to work correctly was a hassle - unit tests helped there.
 
 ## Missing features
 

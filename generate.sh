@@ -3,7 +3,7 @@
 # Use this script to generate dummy files for testing
 
 # Number of files to generate
-num_files=51
+num_files=50
 
 # Directory to store the files
 dir="client_storage"
@@ -12,7 +12,7 @@ dir="client_storage"
 mkdir -p "$dir"
 
 # Generate files
-for i in $(seq 1 $num_files)
+for i in $(seq -w 1 $num_files)
 do
     filename="$dir/file$i.txt"
     echo "This is file $i" > "$filename"

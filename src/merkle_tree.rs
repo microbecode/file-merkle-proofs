@@ -71,24 +71,28 @@ impl MerkleTree {
         self.root.clone()
     }
 
+    /// Get the Merkle proof for a given index
+    /// Generates (duplicates) nodes on the fly if missing from the tree
     pub fn get_merkle_proof(&self, index: usize) -> Option<Vec<(String, bool)>> {
         if index >= self.levels[0].len() {
-            return None; // Out of bounds
+            return None;
         }
 
         let mut proof = Vec::new();
         let mut current_index = index;
 
-        // Iterate over each level of the tree, except the root
         for level in self.levels.iter().take(self.levels.len() - 1) {
             let sibling_index = current_index ^ 1; // XOR with 1 flips the last bit
 
-            if sibling_index < level.len() {
-                // The boolean indicates whether the sibling is on the right
-                proof.push((level[sibling_index].clone(), sibling_index > current_index));
-            }
+            let sibling_hash = if sibling_index < level.len() {
+                level[sibling_index].clone()
+            } else {
+                // Duplicate the current node if sibling is out of bounds
+                level[current_index].clone()
+            };
 
-            current_index /= 2; // Move to the parent in the next level
+            proof.push((sibling_hash, sibling_index > current_index));
+            current_index /= 2;
         }
 
         Some(proof)
@@ -303,10 +307,6 @@ mod tests {
         let expected_mid_node1 = calculate_hash(&format!("{}{}", expected_leaf_1, expected_leaf_2));
         let expected_mid_node2 = calculate_hash(&format!("{}{}", expected_leaf_3, expected_leaf_4));
 
-        // Calculate root hash
-        let expected_root =
-            calculate_hash(&format!("{}{}", expected_mid_node1, expected_mid_node2));
-
         // Function to verify the proof
         fn verify_proof(proof: Vec<(String, bool)>, expected_proof: Vec<String>) {
             assert_eq!(proof.len(), expected_proof.len());
@@ -329,6 +329,111 @@ mod tests {
         {
             let proof = tree.get_merkle_proof(2).unwrap();
             let expected_proof = vec![expected_leaf_4, expected_mid_node1];
+            verify_proof(proof, expected_proof);
+        }
+    }
+
+    #[test]
+    fn get_merkle_proof_with_five_elements() {
+        let mut tree = MerkleTree::new();
+
+        let val1: String = "3".to_string();
+        let val2: String = "4".to_string();
+        let val3: String = "5".to_string();
+        let val4: String = "6".to_string();
+        let val5: String = "7".to_string();
+        let elements: Vec<String> = vec![
+            val1.clone(),
+            val2.clone(),
+            val3.clone(),
+            val4.clone(),
+            val5.clone(),
+        ];
+
+        tree.build(&elements);
+
+        let expected_leaf_1 = calculate_hash(&val1);
+        let expected_leaf_2 = calculate_hash(&val2);
+        let expected_leaf_3 = calculate_hash(&val3);
+        let expected_leaf_4 = calculate_hash(&val4);
+        let expected_leaf_5 = calculate_hash(&val5);
+
+        // Duplicate the last leaf hash to ensure even number of hashes
+        let expected_leaf_6 = expected_leaf_5.clone();
+
+        // Calculate intermediate hashes
+        let expected_mid1_node1 =
+            calculate_hash(&format!("{}{}", expected_leaf_1, expected_leaf_2));
+        let expected_mid1_node2 =
+            calculate_hash(&format!("{}{}", expected_leaf_3, expected_leaf_4));
+        let expected_mid1_node3 =
+            calculate_hash(&format!("{}{}", expected_leaf_5, expected_leaf_6));
+
+        let expected_mid2_node1 =
+            calculate_hash(&format!("{}{}", expected_mid1_node1, expected_mid1_node2));
+        let expected_mid2_node2 =
+            calculate_hash(&format!("{}{}", expected_mid1_node3, expected_mid1_node3));
+
+        // Function to verify the proof
+        fn verify_proof(proof: Vec<(String, bool)>, expected_proof: Vec<(String, bool)>) {
+            assert_eq!(proof.len(), expected_proof.len());
+            for ((elem1, is_right1), (expected_elem, expected_is_right)) in
+                proof.iter().zip(expected_proof.iter())
+            {
+                assert_eq!(elem1, expected_elem);
+                assert_eq!(is_right1, expected_is_right);
+            }
+        }
+
+        // Test proofs for each leaf
+        {
+            let proof = tree.get_merkle_proof(0).unwrap();
+            println!("Received proof: {:?}", proof);
+            let expected_proof = vec![
+                (expected_leaf_2.clone(), true),
+                (expected_mid1_node2.clone(), true),
+                (expected_mid2_node2.clone(), true),
+            ];
+            verify_proof(proof, expected_proof);
+        }
+        {
+            let proof = tree.get_merkle_proof(1).unwrap();
+            println!("Received proof: {:?}", proof);
+            let expected_proof = vec![
+                (expected_leaf_1.clone(), false),
+                (expected_mid1_node2.clone(), true),
+                (expected_mid2_node2.clone(), true),
+            ];
+            verify_proof(proof, expected_proof);
+        }
+        {
+            let proof = tree.get_merkle_proof(2).unwrap();
+            println!("Received proof: {:?}", proof);
+            let expected_proof = vec![
+                (expected_leaf_4.clone(), true),
+                (expected_mid1_node1.clone(), false),
+                (expected_mid2_node2.clone(), true),
+            ];
+            verify_proof(proof, expected_proof);
+        }
+        {
+            let proof = tree.get_merkle_proof(3).unwrap();
+            println!("Received proof: {:?}", proof);
+            let expected_proof = vec![
+                (expected_leaf_3.clone(), false),
+                (expected_mid1_node1.clone(), false),
+                (expected_mid2_node2.clone(), true),
+            ];
+            verify_proof(proof, expected_proof);
+        }
+        {
+            let proof = tree.get_merkle_proof(4).unwrap();
+            println!("Received proof: {:?}", proof);
+            let expected_proof = vec![
+                (expected_leaf_5.clone(), true),
+                (expected_mid1_node3.clone(), true),
+                (expected_mid2_node1.clone(), false),
+            ];
             verify_proof(proof, expected_proof);
         }
     }
