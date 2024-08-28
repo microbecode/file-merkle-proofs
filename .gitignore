@@ -1,4 +1,4 @@
 /target
-client_storage
+client_storage/*
 server_storage
 temp

@@ -33,6 +33,16 @@ The Merkle tree implementation includes:
 - Root hash calculation
 - Generation of Merkle proofs for specific tree nodes
 
+## Deployment
+
+The server is meant to be deployed with (Shuttle)[https://shuttle.rs/]. Once you have Shuttle configured, you can deploy it:
+- Locally: `cargo shuttle run`
+- On Shuttle: `cargo shuttle deploy`
+
+### Existing deployment
+
+The server has been deployed on Shuttle and can be accessed via the client at https://merkleproofs.shuttleapp.rs .
+
 ## Usage
 
 First, make sure you have a server running, either locally or online.
@@ -47,7 +57,7 @@ Note that you should remember the index of the files you upload - later verifica
 
 The server should respond with a success message and a root hash it calculated.
 
-The files will be automatically deleted from your local folder after the upload is complete.
+The files will be automatically deleted from your local folder after the upload is complete. Note that you can only upload files once.
 
 ### Verify files
 
@@ -71,16 +81,6 @@ To issue this request to the server, you can run: `cargo run --bin client -- del
    ```
 1. Build the project: `cargo build --release`
 1. Run the server (using Shuttle): `cargo shuttle run`
-
-## Deployment
-
-The server is meant to be deployed with (Shuttle)[https://shuttle.rs/]. Once you have Shuttle configured, you can deploy it:
-- Locally: `cargo shuttle run`
-- On Shuttle: `cargo shuttle deploy`
-
-### Existing deployment
-
-The server has been deployed on Shuttle and can be accessed via the client at https://merkleproofs.shuttleapp.rs
 
 ## Disclaimer
 
