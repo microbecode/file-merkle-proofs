@@ -24,8 +24,8 @@ impl MerkleTree {
     }
 
     /// Build the Merkle tree from a list of elements
-    /// For example, with three elements A, B, C, the tree will be:
-    ///
+    // For example, with three elements A, B, C, the tree will be:
+    //
     //     root
     //    /    \
     //    D    E      // level 1, where D = hash(AB) and E = hash(CC)
@@ -48,11 +48,13 @@ impl MerkleTree {
 
             // Process pairs of hashes
             for chunk in hashes.chunks(2) {
-                // Concatenate the two hash strings
-                let combined_hash = format!("{}{}", chunk[0], chunk[1]);
-                // Calculate the hash of the combined string
-                let hash = calculate_hash(&combined_hash);
-                new_hashes.push(hash);
+                if chunk.len() == 2 {
+                    let combined_hash = format!("{}{}", chunk[0], chunk[1]);
+                    new_hashes.push(calculate_hash(&combined_hash));
+                } else {
+                    let combined_hash = format!("{}{}", chunk[0], chunk[0]);
+                    new_hashes.push(calculate_hash(&combined_hash));
+                }
             }
 
             nodes.push(new_hashes.clone());
@@ -211,6 +213,72 @@ mod tests {
 
         assert_eq!(tree.levels[1][0], expected_mid_node1);
         assert_eq!(tree.levels[1][1], expected_mid_node2);
+    }
+
+    // Test a tree that has an odd amount of middle nodes.
+    #[test]
+    fn build_tree_three_elements_in_middle() {
+        let mut tree = MerkleTree::new();
+
+        let val1: String = "a".to_string();
+        let val2: String = "b".to_string();
+        let val3: String = "c".to_string();
+        let val4: String = "d".to_string();
+        let val5: String = "e".to_string();
+        let elements: Vec<String> = vec![val1, val2, val3, val4, val5];
+
+        tree.build(&elements);
+
+        // Calculate the expected hashes
+        let expected_leaf_1 = calculate_hash(&elements[0]);
+        let expected_leaf_2 = calculate_hash(&elements[1]);
+        let expected_leaf_3 = calculate_hash(&elements[2]);
+        let expected_leaf_4 = calculate_hash(&elements[3]);
+        let expected_leaf_5 = calculate_hash(&elements[4]);
+
+        // Duplicate the last leaf hash to ensure even number of hashes
+        let expected_leaf_6 = expected_leaf_5.clone();
+
+        // Calculate the intermediate hashes
+        let expected_mid1_node1 =
+            calculate_hash(&format!("{}{}", expected_leaf_1, expected_leaf_2));
+        let expected_mid1_node2 =
+            calculate_hash(&format!("{}{}", expected_leaf_3, expected_leaf_4));
+        let expected_mid1_node3 =
+            calculate_hash(&format!("{}{}", expected_leaf_5, expected_leaf_5));
+
+        let expected_mid2_node1 =
+            calculate_hash(&format!("{}{}", expected_mid1_node1, expected_mid1_node2));
+        let expected_mid3_node2 =
+            calculate_hash(&format!("{}{}", expected_mid1_node3, expected_mid1_node3));
+
+        // Calculate the root hash
+        let expected_root =
+            calculate_hash(&format!("{}{}", expected_mid2_node1, expected_mid3_node2));
+
+        // Assertions
+        assert_eq!(tree.levels.len(), 4);
+        assert_eq!(tree.levels[0].len(), 6); // 5 leaves + 1 duplicated leaf
+        assert_eq!(tree.levels[1].len(), 3); // 3 intermediate nodes
+        assert_eq!(tree.levels[2].len(), 2);
+        assert_eq!(tree.levels[3].len(), 1); // 1 root node
+
+        assert_eq!(tree.root, Some(expected_root.clone()));
+        assert_eq!(tree.levels[3][0], expected_root);
+
+        assert_eq!(tree.levels[0][0], expected_leaf_1);
+        assert_eq!(tree.levels[0][1], expected_leaf_2);
+        assert_eq!(tree.levels[0][2], expected_leaf_3);
+        assert_eq!(tree.levels[0][3], expected_leaf_4);
+        assert_eq!(tree.levels[0][4], expected_leaf_5);
+        assert_eq!(tree.levels[0][5], expected_leaf_6);
+
+        assert_eq!(tree.levels[1][0], expected_mid1_node1);
+        assert_eq!(tree.levels[1][1], expected_mid1_node2);
+        assert_eq!(tree.levels[1][2], expected_mid1_node3);
+
+        assert_eq!(tree.levels[2][0], expected_mid2_node1);
+        assert_eq!(tree.levels[2][1], expected_mid3_node2);
     }
 
     #[test]
