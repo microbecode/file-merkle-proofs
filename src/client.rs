@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+/// The directory where the client state and uploaded files are stored  
 const STORAGE_DIR: &str = "client_storage";
+/// The file where the client state is stored
 const STATE_STORAGE: &str = "state.json";
 
 #[derive(Serialize, Deserialize)]
@@ -24,10 +26,11 @@ struct FileData {
     content: String,
 }
 
-// Example: cargo run --bin client -- upload http://127.0.0.1:8000 file1.txt file2.txt
-// Example: cargo run --bin client -- upload http://127.0.0.1:8000 all
-// Example: cargo run --bin client -- verify http://127.0.0.1:8000 1
-// Example: cargo run --bin client -- delete_all http://127.0.0.1:8000
+/// Main function that sets up the client
+/// Example: cargo run --bin client -- upload http://127.0.0.1:8000 file1.txt file2.txt
+/// Example: cargo run --bin client -- upload http://127.0.0.1:8000 all
+/// Example: cargo run --bin client -- verify http://127.0.0.1:8000 1
+/// Example: cargo run --bin client -- delete_all http://127.0.0.1:8000
 #[tokio::main]
 async fn main() {
     let matches = Command::new("Merkle Client")
@@ -100,6 +103,7 @@ fn ensure_storage_dir_exists() {
     }
 }
 
+/// Uploads files to the server
 async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), reqwest::Error> {
     ensure_storage_dir_exists();
 
@@ -160,6 +164,7 @@ async fn upload_files(server_url: &str, file_paths: &[String]) -> Result<(), req
     Ok(())
 }
 
+/// Deletes the uploaded files from the local storage
 fn delete_uploaded_files(files: &[FileData]) {
     for file in files {
         let path = Path::new(STORAGE_DIR).join(&file.name);
@@ -171,6 +176,7 @@ fn delete_uploaded_files(files: &[FileData]) {
     }
 }
 
+/// Reads all files from the local storage
 fn read_all_files_from_storage() -> Vec<FileData> {
     let storage_path = Path::new(STORAGE_DIR);
     let mut files = Vec::new();
@@ -193,6 +199,7 @@ fn read_all_files_from_storage() -> Vec<FileData> {
     files
 }
 
+/// Reads specified files from the local storage
 fn read_specified_files(file_paths: &[String]) -> Vec<FileData> {
     file_paths
         .iter()
@@ -207,6 +214,7 @@ fn read_specified_files(file_paths: &[String]) -> Vec<FileData> {
         .collect()
 }
 
+/// Verifies a file by its index
 async fn verify_file(server_url: &str, file_index: usize) -> Result<(), reqwest::Error> {
     let client = Client::new();
 
@@ -265,6 +273,7 @@ async fn verify_file(server_url: &str, file_index: usize) -> Result<(), reqwest:
     Ok(())
 }
 
+/// Sends a request to the server to delete all data and state
 async fn delete_all_server_data(server_url: &str) -> Result<(), reqwest::Error> {
     let client = Client::new();
     let response = client

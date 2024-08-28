@@ -11,6 +11,7 @@ use warp::{Rejection, Reply};
 
 use merkleproofs::merkle_tree::MerkleTree;
 
+/// Directory where the files are stored
 const STORAGE_DIR: &str = "server_storage";
 
 #[derive(Serialize, Deserialize)]
@@ -28,14 +29,14 @@ struct UploadRequest {
 #[derive(Serialize, Deserialize)]
 struct FileResponse {
     content: String,
-    proof: Option<Vec<String>>, // Optional proof
+    proof: Option<Vec<String>>,
 }
 
 #[derive(Clone)]
 struct AppState {
     file_store: Arc<RwLock<Vec<(String, String)>>>, // Ordered list of (filename, content)
     file_index: Arc<RwLock<HashMap<String, usize>>>, // Filename to index mapping
-    merkle_tree: Arc<RwLock<Option<MerkleTree>>>,   // The single Merkle tree
+    merkle_tree: Arc<RwLock<Option<MerkleTree>>>,   // The Merkle tree
     root_hash: Arc<RwLock<Option<String>>>,         // The root hash of the Merkle tree
 }
 
@@ -56,10 +57,12 @@ fn ensure_storage_dir_exists() {
     }
 }
 
+/// Main function that sets up the server
 #[shuttle_runtime::main]
 async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
     let state = Arc::new(AppState::new());
 
+    // Route for uploading files
     let upload_route = warp::post()
         .and(warp::path("upload"))
         .and(warp::body::json())
@@ -68,11 +71,13 @@ async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
             upload_files(request, state).await
         });
 
+    // Route for verifying a file
     let verify_route = warp::get()
         .and(warp::path!("file" / usize))
         .and(with_state(state.clone()))
         .and_then(get_file_content);
 
+    // Route for deleting all files and state
     let delete_route = warp::delete()
         .and(warp::path("delete_all"))
         .and(with_state(state.clone()))
@@ -80,7 +85,6 @@ async fn warp() -> shuttle_warp::ShuttleWarp<(impl Reply,)> {
 
     let routes = upload_route.or(verify_route).or(delete_route);
 
-    // Add this to your warp::serve or shuttle_warp::ShuttleWarp
     Ok((routes).boxed().into())
 }
 
@@ -90,6 +94,7 @@ fn with_state(
     warp::any().map(move || state.clone())
 }
 
+/// Uploads files to the server and updates the Merkle tree
 async fn upload_files(
     request: UploadRequest,
     state: Arc<AppState>,
@@ -118,8 +123,6 @@ async fn upload_files(
         );
     }
 
-    // Print out the contents of the file_store after uploading
-    println!("Contents of file_store after upload:");
     for (index, (name, content)) in file_store.iter().enumerate() {
         println!("Index {}: {} ({})", index, name, content.len());
     }
@@ -137,6 +140,7 @@ async fn upload_files(
     })))
 }
 
+/// Verifies a file by its index. Sends a verification object as a response
 async fn get_file_content(
     file_index: usize,
     state: Arc<AppState>,
@@ -168,6 +172,7 @@ async fn get_file_content(
     Ok(warp::reply::json(&response))
 }
 
+/// Deletes all files and state from the server
 async fn delete_all(state: Arc<AppState>) -> Result<impl Reply, Rejection> {
     // Clear the file store and index
     let mut file_store = state.file_store.write().await;

@@ -12,6 +12,7 @@ impl ClientState {
         Self { root_hash }
     }
 
+    /// Loads the client state from a file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         if path.as_ref().exists() {
             let data = fs::read_to_string(path)?;
@@ -22,6 +23,7 @@ impl ClientState {
         }
     }
 
+    /// Saves the client state to a file
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
         let data = serde_json::to_string(self)?;
         fs::write(path, data)?;

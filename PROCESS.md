@@ -20,6 +20,7 @@ Future features that should be added:
   - Audit logs
   - ...
 - Wrap the server in a Docker container
+- Generate proper API documentation for the server
 - Add state storage to the server and recovery from a restart
 - Implement the possibility of submitting files multiple times at the client side
 - Continue with better documentation
