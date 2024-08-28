@@ -26,6 +26,10 @@ Future features that should be added:
 - Continue with better documentation
 - Add better error handling
 
-## Main docs
+## Very short usage instructions
 
-Overview of the project, installation, deployment and usage instructions can be found in the [README](README.md) file.
+1. Generate dummy files: `./generate.sh`
+1. Upload all files: `cargo run --bin client -- upload https://merkleproofs.shuttleapp.rs all`
+1. Verify a specific file: `cargo run --bin client -- verify https://merkleproofs.shuttleapp.rs 1`
+
+More thorough instructions can be found in the [README](README.md) file.
