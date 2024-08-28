@@ -43,11 +43,22 @@ The server is meant to be deployed with (Shuttle)[https://shuttle.rs/]. Once you
 
 The server has been deployed on Shuttle and can be accessed via the client at https://merkleproofs.shuttleapp.rs .
 
+## Installation
+
+1. Ensure you have Rust and Cargo installed on your system.
+1. Clone this repository:
+   ```
+   git clone https://github.com/microbecode/file-merkle-proofs.git
+   cd file-merkle-proofs
+   ```
+1. Build the project: `cargo build --release`
+1. Run the server (using Shuttle): `cargo shuttle run`
+
 ## Usage
 
-First, make sure you have a server running, either locally or online.
+First, make sure you have a server running, either locally or online. In the following instructions, we assume the server is running locally.
 
-In the following instructions, we assume the server is running locally.
+If need to generate some dummy files for testing, you can use the `generate.sh` script.
 
 ### Upload files
 
@@ -70,17 +81,6 @@ The server should respond with a Merkle proof for the file, the file name and it
 The client can request the server to delete its local files and state. This is mostly useful for testing and debugging reasons.
 
 To issue this request to the server, you can run: `cargo run --bin client -- delete_all http://127.0.0.1:8000`
-
-## Installation
-
-1. Ensure you have Rust and Cargo installed on your system.
-1. Clone this repository:
-   ```
-   git clone https://github.com/microbecode/file-merkle-proofs.git
-   cd file-merkle-proofs
-   ```
-1. Build the project: `cargo build --release`
-1. Run the server (using Shuttle): `cargo shuttle run`
 
 ## Disclaimer
 
