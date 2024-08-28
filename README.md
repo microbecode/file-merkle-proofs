@@ -6,12 +6,7 @@ This project demonstrates a Merkle Proof file storage system between a client an
 
 This project demonstrates a Merkle Proof system implemented in Rust, facilitating secure file verification between a client and a server. The system uses a Merkle tree to efficiently prove the integrity and inclusion of files.
 
-## Features
-
-- **File Upload**: Clients can upload multiple files to the server.
-- **Merkle Tree Generation**: The server constructs a Merkle tree from the uploaded files.
-- **File Verification**: Clients can verify the integrity of specific files using Merkle proofs.
-- **Efficient Proofs**: The system generates compact proofs for file verification.
+The client can store files on the server, and ask the server for proof that it still has the files stored. This way, the client does not need to store the files itself and can trust that the server has them.
 
 ## Components
 
@@ -19,7 +14,7 @@ This project demonstrates a Merkle Proof system implemented in Rust, facilitatin
 
 The client component provides the following functionality:
 - Upload files to the server
-- Verify the integrity of files using Merkle proofs
+- Send a verification request to the server
 - Manage local file storage and state
 - Ask the server to delete its state and files
 
@@ -27,8 +22,9 @@ The client component provides the following functionality:
 
 The server component is responsible for:
 - Receiving and storing uploaded files
-- Generating and maintaining its own Merkle tree
+- Generating and maintaining its own Merkle tree for hashes of the file contents
 - Providing Merkle proofs for file verification requests
+- Deleting the server's state and files upon request
 
 ### Merkle Tree
 
